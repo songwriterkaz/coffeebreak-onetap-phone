@@ -82,7 +82,7 @@ function paintPause(){const pz=get('paused',false),b=$('#pause');b.textContent=p
 $('#pause').onclick=()=>{buzz();const pz=!get('paused',false);put('paused',pz);if(pz&&ringCall){try{ringCall.close()}catch(e){}ringCall=null;stopRing();if(role==='hub')toDevs({t:'stop'})}paintPause();say(pz?'Paused. Not taking calls.':'Online. Taking calls.')};
 paintPause();
 
-let qrFor='';function paintQR(){const id=myNum(),u='https://songwriterkaz.github.io/coffeebreak-onetap-phone/?add='+id;if(u===qrFor)return;qrFor=u;$('#me').textContent=id;$('#pqr').innerHTML='';try{new QRCode($('#pqr'),{text:u,width:130,height:130,correctLevel:QRCode.CorrectLevel.M})}catch(e){}}
+let qrFor='';function paintQR(){const id=myNum(),u='https://songwriterkaz.github.io/coffeebreak-onetap-phone/?add='+id;if(u===qrFor)return;qrFor=u;$('#me').textContent=id;$('#pqr').innerHTML='';try{new QRCode($('#pqr'),{text:u,width:280,height:280,colorDark:'#000000',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.M})}catch(e){}}
 paintQR();setInterval(paintQR,3000);
 
 $('#bookadd').onclick=()=>{showS('add',1);$('#anum').focus()};
