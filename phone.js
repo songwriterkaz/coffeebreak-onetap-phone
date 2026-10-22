@@ -17,7 +17,7 @@ draw();onSync=draw;
 onState=s=>paintState(s);
 let first=!get('setup');onReady=()=>{if(first){first=false;put('setup',1);say('Your phone is online. Tap a big button to call.')}};
 state();
-const showS=(id,on)=>$('#'+id).classList.toggle('hide',!on);
+const showS=(id,on)=>{const e=$('#'+id);if(e)e.classList.toggle('hide',!on)};
 let dc=null,other=null,cur=null,stream=null,timer=null,pending=false,expect=null,ringCall=null,ringT=null,callerDcs={},relayTried=false;
 function stopRing(){clearInterval(ringT);ringT=null;showS('ring',0);try{speechSynthesis.cancel()}catch(e){}}
 function tidy(){setMute(false);const k=dc;dc=null;if(k)setTimeout(()=>{try{k.close()}catch(e){}},800);const c=cur;cur=null;try{c&&c.close()}catch(e){}if(stream)stream.getTracks().forEach(t=>t.stop());stream=null;clearInterval(timer);pending=false;expect=null;showS('incall',0);showS('tapsound',0);stopRing()}
@@ -39,7 +39,7 @@ function hook(c,who,onFail){cur=c;other=c.peer;let live=false;
 function openDc(to,n){try{const d=peer.connect(to,{reliable:true,serialization:'json'});dc=d;
  d.on('data',x=>{if(x==='bye'&&cur)endCall('Call ended');else if(x&&x.t==='redirect'&&typeof x.to==='string'&&x.to.startsWith(pid(n)))redirect(x.to,n)})}catch(e){}}
 function place(to,n,opts){const who=nameOf(n);openDc(to,n);
- const c=peer.call(to,stream,{metadata:{video:false,name:myName()},sdpTransform:undefined});
+ const c=peer.call(to,stream,{metadata:{video:false,ver:APP_VER,name:myName()},sdpTransform:undefined});
  hook(c,who,()=>{if(!relayTried&&opts!=='relay'){relayTried=true;$('#cwho').textContent='Trying the relay…';const old=cur;cur=null;try{old.close()}catch(e){}placeRelay(to,n)}else endCall('Could not connect. Tap Test my connection to check this WiFi.')})}
 function placeRelay(to,n){// second try forcing the free TURN relay
  const old=peer.options.config;peer.options.config=ICE_RELAY;try{place(to,n,'relay')}finally{peer.options.config=old}}
@@ -82,9 +82,47 @@ function paintPause(){const pz=get('paused',false),b=$('#pause');b.textContent=p
 $('#pause').onclick=()=>{buzz();const pz=!get('paused',false);put('paused',pz);if(pz&&ringCall){try{ringCall.close()}catch(e){}ringCall=null;stopRing();if(role==='hub')toDevs({t:'stop'})}paintPause();say(pz?'Paused. Not taking calls.':'Online. Taking calls.')};
 paintPause();
 
-let qrFor='';function paintQR(){const id=myNum(),u='https://songwriterkaz.github.io/coffeebreak-onetap-phone/?add='+id;if(u===qrFor)return;qrFor=u;$('#me').textContent=id;$('#pqr').innerHTML='';try{new QRCode($('#pqr'),{text:u,width:280,height:280,colorDark:'#000000',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.M})}catch(e){}}
+let qrFor='';function paintQR(){const id=myNum(),u=pairURL();if(!$('#pqr')){$('#me').textContent=id;return}if(u===qrFor)return;qrFor=u;$('#me').textContent=id;$('#pqr').innerHTML='';try{new QRCode($('#pqr'),{text:u,width:280,height:280,colorDark:'#000000',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.M})}catch(e){}}
 paintQR();setInterval(paintQR,3000);
 
 $('#bookadd').onclick=()=>{showS('add',1);$('#anum').focus()};
 const canPick='contacts' in navigator&&'select' in navigator.contacts;if(canPick)showS('bookimp',1);
 $('#bookimp').onclick=async()=>{try{const r=await navigator.contacts.select(['name','tel'],{multiple:true});let k=0;for(const c of r){const nm=((c.name||[])[0]||'Contact').slice(0,40);for(const t of(c.tel||[])){const x=String(t).replace(/[^\d+]/g,'');if(/^\+?\d{3,15}$/.test(x)){setContact('tel:'+x,nm);k++;break}}}say(k?'Added '+k+' people':'No one added')}catch(e){}};
+// ---------- Connect a phone ----------
+const NOQR=!!window.CB_NOQR;
+if(NOQR){showS('scanb',0);showS('codeb',1);showS('cqrwrap',0);showS('ccodewrap',1)}
+function pstat(id,txt,kind){const e=$('#'+id);e.textContent=txt;e.className='status '+(kind||'on');showS(id,1)}
+function showPaired(name){const t='Connected to '+name;['pairst','cstat','codestat'].forEach(i=>pstat(i,t,'on'));buzz([80,60,80]);say(t);setTimeout(()=>{showS('conov',0);showS('codeov',0);showS('scanov',0)},2500)}
+let pairing=null;// {n,name} or {code}
+window.onPair=(m,from)=>{checkVer(m.ver);const n=norm(m.num);if(!n||n===me)return;const name=String(m.name||'').slice(0,40)||'Coffeebreak friend';
+ if(!S.contacts[n]||S.contacts[n].del||/^Contact \d+$/.test(S.contacts[n].name)||S.contacts[n].name!==name)setContact(n,name);
+ if(m.kind==='pair')sendPair(n,'pairok');
+ if(m.kind==='pairok'&&pairing){pairing=null;put('pairWith',null)}
+ put('last',n);showPaired(name)};
+function pairLoop(){let tries=0;const step=()=>{if(!pairing)return;if(Date.now()-pairing.t>180000){pstat('pairst','Could not reach the other phone. Make sure it is open, then try again.','try');pairing=null;put('pairWith',null);return}
+  if(ready){const ok=pairing.code?sendCode(pairing.code):sendPair(pairing.n,'pair');tries++;const who=pairing.name||'the other phone';const txt=tries<=1?'Connecting to '+who:'Trying again';pstat('pairst',txt,tries<=1?'off':'try');if(pairing.code)pstat('codestat',txt,tries<=1?'off':'try')}
+  else pstat('pairst','Connecting','off');
+  setTimeout(step,ready?2500:400)};step()}
+function startPairWith(n,name){if(!norm(n)||n===me)return;if(!S.contacts[n])setContact(n,name||'Coffeebreak friend');pairing={n,name,t:Date.now()};pairLoop()}
+const pw=get('pairWith',null);if(pw&&pw.n&&Date.now()-pw.t<180000)startPairWith(pw.n,pw.name);
+$('#conb').onclick=()=>{buzz();showS('conov',1);showS('cstat',0);
+ if(NOQR){$('#ccode').textContent='…';startCode(c=>{$('#ccode').textContent=c.slice(0,3)+' '+c.slice(3);say('Your code is '+c.split('').join(' '))});return}
+ const u=pairURL();if(!$('#cqr'))return;$('#clink').textContent=u;$('#cqr').innerHTML='';try{new QRCode($('#cqr'),{text:u,width:520,height:520,colorDark:'#000000',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.M})}catch(e){}say('Point the other phone camera at this code.')};
+$('#cclose').onclick=()=>showS('conov',0);
+if($('#ccopy'))$('#ccopy').onclick=async()=>{const u=pairURL();try{await navigator.clipboard.writeText(u);$('#ccopy').textContent='Link copied';say('Link copied')}catch(e){prompt('Copy this link',u)}};
+// code entry
+let codeIn='';function paintCode(){$('#codev').textContent=codeIn.replace(/(\d{3})(?=\d)/,'$1 ')||' '}
+$('#pad').innerHTML=['1','2','3','4','5','6','7','8','9','⌫','0','✓'].map(k=>`<button data-k="${k}" aria-label="${k==='⌫'?'Delete':k==='✓'?'Connect':k}">${k}</button>`).join('');
+document.querySelectorAll('[data-k]').forEach(b=>b.onclick=()=>{buzz(30);const k=b.dataset.k;if(k==='⌫')codeIn=codeIn.slice(0,-1);else if(k==='✓'){$('#codego').click();return}else if(codeIn.length<6)codeIn+=k;paintCode()});
+$('#codeb').onclick=()=>{buzz();codeIn='';paintCode();showS('codestat',0);showS('codeov',1);say('Type the code shown on the other phone.')};
+$('#codego').onclick=()=>{if(codeIn.length!==6){say('The code has 6 numbers.');pstat('codestat','The code has 6 numbers','try');return}pairing={code:codeIn,name:'',t:Date.now()};pairLoop()};
+$('#codeclose').onclick=()=>showS('codeov',0);
+// in-app scanner: BarcodeDetector, or the bundled jsQR on iPhone and iPad
+let scanS=null,scanT=null;
+function stopScan(){clearTimeout(scanT);if(scanS)scanS.getTracks().forEach(t=>t.stop());scanS=null}
+function handleScan(txt){try{const u=new URL(txt);const a=norm(u.searchParams.get('pair')),ad=norm(u.searchParams.get('add'));const n=a||ad;if(n){stopScan();showS('scanov',0);startPairWith(n,String(u.searchParams.get('n')||'').slice(0,40));return true}}catch(e){}return false}
+if($('#scanb'))$('#scanb').onclick=async()=>{buzz();showS('scanov',1);$('#scanmsg').textContent='Point at the code on the other phone.';
+ try{scanS=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'},audio:false})}catch(e){$('#scanmsg').textContent='Camera not allowed. You can also scan with the normal camera app.';return}
+ const v=$('#scanv');v.srcObject=scanS;await v.play().catch(()=>{});const bd=('BarcodeDetector' in window)?new BarcodeDetector({formats:['qr_code']}):null;const cv=document.createElement('canvas'),cx=cv.getContext('2d',{willReadFrequently:true});
+ const tick=async()=>{if(!scanS)return;try{if(bd){const r=await bd.detect(v);for(const c of r)if(handleScan(c.rawValue))return}else if(window.jsQR&&v.videoWidth){cv.width=v.videoWidth;cv.height=v.videoHeight;cx.drawImage(v,0,0);const d=cx.getImageData(0,0,cv.width,cv.height);const r=jsQR(d.data,d.width,d.height);if(r&&handleScan(r.data))return}}catch(e){}scanT=setTimeout(tick,200)};tick()};
+if($('#sclose'))$('#sclose').onclick=()=>{stopScan();showS('scanov',0)};

@@ -1,4 +1,5 @@
 'use strict';
+const APP_VER=5;
 const $=s=>document.querySelector(s),PFX='coffeebreak-dsim-v1-';
 const TURN_FREE=[{urls:['turn:openrelay.metered.ca:80','turn:openrelay.metered.ca:443','turn:openrelay.metered.ca:443?transport=tcp','turns:openrelay.metered.ca:443?transport=tcp'],username:'openrelayproject',credential:'openrelayproject'}];
 const STUN=[{urls:['stun:stun.l.google.com:19302','stun:stun1.l.google.com:19302','stun:stun2.l.google.com:19302','stun:stun3.l.google.com:19302','stun:stun4.l.google.com:19302']},{urls:'stun:stun.cloudflare.com:3478'},{urls:'stun:global.stun.twilio.com:3478'}];
@@ -50,13 +51,14 @@ function startPeer(asHub,existing){clearTimeout(retry.t);if(asHub===undefined)as
   if(e.type==='unavailable-id'){if(PRESENCE){devId=rnd(1);retry(false)}else if(asHub)startPeer(false);else{devId=rnd(1);retry(false)}}
   else if(e.type==='peer-unavailable'){const tg=(String(e.message).match(/peer (\S+)/)||[])[1];if(role==='dev'&&tg===pid(me))claimSoon(1500);else window.onPeerMissing&&window.onPeerMissing()}
   else if(['network','server-error','socket-error','socket-closed','browser-incompatible'].includes(e.type))retry(asHub)});
- p.on('connection',d=>{if(p!==peer)return;const m=d.metadata||{};
+ p.on('connection',d=>{if(p!==peer)return;const m=d.metadata||{};checkVer(m.ver);
   if(m.kind==='link'){if(role!=='hub'||m.k!==get('lk')){d.on('open',()=>{try{d.send({t:'nope'})}catch(e){}setTimeout(()=>d.close(),500)});return}
    d.on('open',()=>{devs[d.peer]=d;synced=true;d.send({t:'state',s:S});state()});
    d.on('data',x=>{if(!x||typeof x!=='object')return;if(x.t==='state'){merge(x.s);toDevs({t:'state',s:S})}else onHubMsg(d.peer,x)});
    const gone=()=>{delete devs[d.peer];state()};d.on('close',gone);d.on('error',gone)}
+  else if(m.kind==='pair'||m.kind==='pairok'){window.onPair&&window.onPair(m,d.peer);setTimeout(()=>{try{d.close()}catch(e){}},4000)}
   else window.onCallerConn&&window.onCallerConn(d)});
- p.on('call',c=>onCall(c))}
+ p.on('call',c=>{checkVer(c.metadata&&c.metadata.ver);onCall(c)})}
 function retry(asHub){ready=false;state();clearTimeout(retry.t);retry.t=setTimeout(()=>startPeer(asHub),back);back=Math.min(back*2,900)}
 function restart(){startPeer(PRESENCE?false:(role==='hub'||!get('lk')))}
 let claimBack=4000;function claimSoon(ms){if(PRESENCE)return;clearTimeout(claimT);claimT=setTimeout(()=>{if(role!=='dev'||(link&&link.open))return;
@@ -65,7 +67,7 @@ let claimBack=4000;function claimSoon(ms){if(PRESENCE)return;clearTimeout(claimT
  q.on('open',()=>{ok=true;claimBack=4000;startPeer(true,q)});
  q.on('error',e=>{if(ok)return;try{q.destroy()}catch(_){}claimBack=Math.min(claimBack*2,60000);if(e.type==='unavailable-id'&&ready&&role==='dev'&&!(link&&link.open))linkHub();else claimSoon(claimBack)})},ms)}
 function linkHub(){const me=myNum();if(!get('lk')){claimSoon(3000);return}
- const l=peer.connect(pid(me),{metadata:{kind:'link',k:get('lk')},reliable:true,serialization:'json'});link=l;
+ const l=peer.connect(pid(me),{metadata:{kind:'link',ver:APP_VER,k:get('lk')},reliable:true,serialization:'json'});link=l;
  const to=setTimeout(()=>{if(!l.open)claimSoon(claimBack)},6000);
  l.on('open',()=>{clearTimeout(to);synced=true;l.send({t:'state',s:S});state()});
  l.on('data',x=>{if(!x||typeof x!=='object')return;if(x.t==='state')merge(x.s);else if(x.t==='ring')onRing(x);else if(x.t==='stop')onStopRing(x);else if(x.t==='nope'){claimSoon(10000)}});
@@ -99,3 +101,22 @@ if(navigator.onLine!==false)startPeer(!PRESENCE);
 // keep the screen awake while the phone is open
 let wl=null;async function wake(){try{if('wakeLock' in navigator&&!document.hidden&&!wl){wl=await navigator.wakeLock.request('screen');wl.addEventListener('release',()=>{wl=null})}}catch(e){wl=null}}
 document.addEventListener('visibilitychange',()=>{if(!document.hidden){wake();watchdog()}});['click','touchend'].forEach(ev=>document.addEventListener(ev,wake,{passive:true}));wake();
+
+// pairing: the hello travels through the signalling server itself, so it works even before audio can connect
+const PHONE_URL=/github\.io$/.test(location.hostname)?'https://songwriterkaz.github.io/coffeebreak-onetap-phone'+(window.CB_NOQR?'-noqr':'')+'/':location.origin+(window.CB_NOQR?'/phone-noqr/':'/phone/');
+function pairURL(){return PHONE_URL+'?pair='+myNum()+'&n='+encodeURIComponent((S.profile&&S.profile.name)||'Coffeebreak friend')}
+function sendPair(to,kind){if(!peer||!ready)return false;try{const d=peer.connect(pid(to),{metadata:{kind,ver:APP_VER,num:myNum(),name:(S.profile&&S.profile.name)||'Coffeebreak friend'},serialization:'json'});setTimeout(()=>{try{d.close()}catch(e){}},4000);return true}catch(e){return false}}
+(()=>{const q=new URLSearchParams(location.search),a=norm(q.get('pair'));if(a&&a!==myNum()){put('pairWith',{n:a,name:String(q.get('n')||'').slice(0,40)||'Coffeebreak friend',t:Date.now()});history.replaceState(null,'',location.pathname)}})();
+// short code pairing (no QR): a temporary helper ID made from a 6 digit code
+let codePeer=null,codeVal=null;
+function startCode(cb){if(codePeer&&codeVal&&codePeer.open){cb(codeVal);return}try{codePeer&&codePeer.destroy()}catch(e){}
+ const c=String(100000+(crypto.getRandomValues(new Uint32Array(1))[0]%900000));const q=new Peer(PFX+'code'+c,{config:ICE,debug:0,pingInterval:4000});codePeer=q;
+ q.on('open',()=>{codeVal=c;cb(c);clearTimeout(startCode.t);startCode.t=setTimeout(stopCode,15*60000)});
+ q.on('error',e=>{if(q!==codePeer)return;if(e.type==='unavailable-id'){codePeer=null;startCode(cb)}else setTimeout(()=>{if(q===codePeer&&!q.open){codePeer=null;startCode(cb)}},1000)});
+ q.on('disconnected',()=>{try{q.reconnect()}catch(e){}});
+ q.on('connection',d=>{const m=d.metadata||{};if(m.kind==='pair'){window.onPair&&window.onPair(m,d.peer)}setTimeout(()=>{try{d.close()}catch(e){}},4000)})}
+function stopCode(){try{codePeer&&codePeer.destroy()}catch(e){}codePeer=null;codeVal=null}
+function sendCode(code){if(!peer||!ready)return false;try{const d=peer.connect(PFX+'code'+code,{metadata:{kind:'pair',ver:APP_VER,num:myNum(),name:(S.profile&&S.profile.name)||'Coffeebreak friend'},serialization:'json'});setTimeout(()=>{try{d.close()}catch(e){}},4000);return true}catch(e){return false}}
+
+// same version everywhere: if the other phone is newer, update and reload this one
+function checkVer(v){v=+v||0;if(v>APP_VER&&get('reloadFor',0)<v){put('reloadFor',v);try{navigator.serviceWorker&&navigator.serviceWorker.getRegistration().then(r=>r&&r.update()).finally(()=>setTimeout(()=>location.reload(),800))}catch(e){location.reload()}}}

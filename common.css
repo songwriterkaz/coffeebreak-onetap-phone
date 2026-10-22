@@ -30,3 +30,7 @@ button,a,input{touch-action:manipulation}input{width:100%}
 @media (min-width:700px){#contacts{grid-template-columns:1fr 1fr}.big{font-size:2.4rem}}
 @media (orientation:landscape) and (min-width:900px){.big{padding:20px 12px}}
 .qrbox{display:flex;flex-direction:column;align-items:center;text-align:center}.qrbox #qr,.qrbox #pqr{display:flex;justify-content:center}.qrbox img,.qrbox canvas{width:min(62vw,280px)!important;height:auto!important;min-width:200px;background:#fff!important;padding:18px!important;border-radius:14px;image-rendering:pixelated}
+.full{position:fixed;inset:0;background:#000;z-index:25;display:flex;flex-direction:column;gap:14px;align-items:stretch;justify-content:center;padding:max(16px,env(safe-area-inset-top)) 16px;overflow:auto;text-align:center}
+#cqr{display:flex;justify-content:center}#cqr img,#cqr canvas{width:min(84vw,62vh,520px)!important;height:auto!important;background:#fff;padding:20px;border-radius:16px;image-rendering:pixelated}
+.pad{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.pad button{font-size:2.6rem;font-weight:900;padding:18px 0;border-radius:20px;border:3px solid #fff;background:#222;color:#fff;min-height:72px}
+.status.try{background:#3d2e00;color:#ffbf00;border:3px solid #ffbf00}

@@ -5,6 +5,8 @@
 <p class="note">Calls over WiFi between Coffeebreak app users. Not a mobile phone number.</p>
 <p class="status off" id="st" role="status" aria-live="polite">Reconnecting…</p>
 <p class="sync" id="sync" aria-live="polite"></p>
+<p class="status on hide" id="pairst" role="status" aria-live="assertive"></p>
+<div class="two"><button id="conb" class="big blue small" aria-label="Connect a phone">Connect a phone</button><button id="scanb" class="big grey small" aria-label="Scan to connect">Scan to connect</button><button id="codeb" class="big grey small hide" aria-label="Enter a code">Enter a code</button></div>
 <div id="contacts" aria-label="Contacts"></div>
 <button id="call" class="big green" aria-label="Call">Call</button>
 <button id="pause" class="big grey small" aria-pressed="false" aria-label="Pause calls">Pause calls</button>
@@ -36,5 +38,13 @@
 <div id="lqr" aria-hidden="true" style="display:flex;justify-content:center"></div>
 <button id="lshare" class="big blue small">Send the link</button><button id="lback" class="big grey small">Back</button></section>
 <section id="testov" class="ov hide" aria-live="polite"><p class="num" style="color:#ffd84d;font-size:2rem">Test my connection</p><p class="note" id="testres">Testing…</p><button id="tback" class="big grey small">Back</button></section>
+<section id="conov" class="full hide" aria-label="Connect a phone"><p class="num" style="color:#ffd84d;font-size:2.2rem;margin:0">Connect a phone</p>
+<div id="cqrwrap"><div id="cqr" role="img" aria-label="QR code. Scan it with the other phone's camera."></div><p class="note">Point the other phone's camera at this code. It opens the app and connects by itself.</p>
+<p class="note" id="clink" style="font-size:1rem;word-break:break-all;color:#9fd"></p><button id="ccopy" class="big blue small">Copy link</button></div>
+<div id="ccodewrap" class="hide"><p class="note">On the other phone tap Enter a code and type</p><p id="ccode" class="num" style="font-size:4.4rem;letter-spacing:10px;color:#fff" aria-live="polite">…</p></div>
+<p class="status on hide" id="cstat" aria-live="assertive"></p><button id="cclose" class="big grey small">Close</button></section>
+<section id="scanov" class="full hide" aria-label="Scan to connect"><p class="num" style="color:#ffd84d;font-size:2rem;margin:0">Scan to connect</p><video id="scanv" playsinline muted style="width:100%;max-height:60vh;border-radius:16px;background:#111"></video><p class="note" id="scanmsg">Point at the code on the other phone.</p><button id="sclose" class="big grey small">Close</button></section>
+<section id="codeov" class="full hide" aria-label="Enter a code"><p class="num" style="color:#ffd84d;font-size:2rem;margin:0">Enter a code</p><p id="codev" class="num" style="font-size:3.6rem;letter-spacing:8px;min-height:1.2em" aria-live="polite"></p>
+<div id="pad" class="pad"></div><button id="codego" class="big green">Connect</button><p class="status on hide" id="codestat" aria-live="assertive"></p><button id="codeclose" class="big grey small">Close</button></section>
 <footer>© Karen O'Brien (Coffeebreak). All designs, music, art and content remain the property of Karen O'Brien. Your purchase gives you a personal-use licence only. It doesn't transfer ownership or allow resale, copying or redistribution.</footer>
-<script src="qrcode.min.js"></script><script src="extras.js"></script><script src="phone.js"></script></body></html>
+<script src="qrcode.min.js"></script><script src="extras.js"></script><script src="jsqr.js" defer></script><script src="phone.js"></script></body></html>
